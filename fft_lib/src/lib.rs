@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let result = fft(100);
-        assert_eq!(result.len(), 100);
+        let result = fft(&vec![0; 100]);
+        assert_eq!(result.imag.len(), 100);
     }
 }
