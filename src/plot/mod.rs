@@ -1,12 +1,17 @@
 #![allow(unused)]
 
+use piston_window::{
+    clear, color::GRAY, line, rectangle, types::Color, Context, Graphics, Line, Rectangle,
+    Transformed,
+};
+
 #[derive(Default)]
 pub struct Plot {
     x: f64,
     y: f64,
     width: f64,
     height: f64,
-    top_label: Option<Label>,
+    caption: Option<Label>,
     x_axis_label: Option<Label>,
     y_axis_label: Option<Label>,
 }
@@ -26,6 +31,19 @@ impl Plot {
             height: size.1,
             ..Default::default()
         }
+    }
+
+    pub fn caption(mut self, content: &str) -> Self {
+        let x = self.x + self.width / 2.0;
+        let y = self.y - 10.0;
+
+        self.caption = Some(Label {
+            content: content.to_owned(),
+            x,
+            y,
+        });
+
+        self
     }
 
     pub fn x_axis_label(mut self, content: &str) -> Self {
@@ -52,5 +70,42 @@ impl Plot {
         });
 
         self
+    }
+
+    pub fn draw_bg<G: Graphics>(&self, c: &Context, g: &mut G) {
+        clear([1.0; 4], g);
+        let line_color = [0.3, 0.3, 0.3, 1.0];
+
+        line(
+            line_color,
+            1.0,
+            [self.x, self.y, self.x, self.y + self.height],
+            c.transform,
+            g,
+        );
+
+        line(
+            line_color,
+            1.0,
+            [
+                self.x,
+                self.y + self.height,
+                self.x + self.width,
+                self.y + self.height,
+            ],
+            c.transform,
+            g,
+        );
+    }
+
+    pub fn point<G: Graphics>(&self, color: Color, x: f64, y: f64, c: &Context, g: &mut G) {
+        let transform = c.trans(self.x + x, self.y + y);
+
+        rectangle(
+            color,
+            [self.x + x, self.y + y, self.x + x, self.y + y],
+            c.transform,
+            g,
+        );
     }
 }

@@ -32,6 +32,7 @@ impl<T> CircularVec<T> {
                 ptr::write(self.ptr.add(self.head), item);
                 self.len += 1;
             } else {
+                // Drop the overwritten item
                 ptr::drop_in_place(self.ptr.add(self.head));
                 ptr::write(self.ptr.add(self.head), item);
             }
@@ -63,6 +64,13 @@ impl<T> CircularVec<T> {
     pub fn is_full(&self) -> bool {
         self.len == self.capacity
     }
+
+    pub fn iter(&self) -> CircularVecIter<T> {
+        CircularVecIter {
+            cv: &self,
+            index: 0,
+        }
+    }
 }
 
 impl<'a, T> Drop for CircularVec<T> {
@@ -75,6 +83,21 @@ impl<'a, T> Drop for CircularVec<T> {
             }
             std::alloc::dealloc(self.ptr as *mut u8, layout);
         }
+    }
+}
+
+pub struct CircularVecIter<'a, T> {
+    cv: &'a CircularVec<T>,
+    index: usize,
+}
+
+impl<'a, T> Iterator for CircularVecIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let it = self.cv.get(self.index);
+        self.index += 1;
+        it
     }
 }
 
