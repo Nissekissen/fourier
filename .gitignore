@@ -1,1 +1,5 @@
-/target
+target/
+build/
+
+.vscode/
+!.vscode/extensions.json
