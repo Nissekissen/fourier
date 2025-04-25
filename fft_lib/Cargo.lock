@@ -14,10 +14,3 @@ version = "0.1.0"
 dependencies = [
  "assert_float_eq",
 ]
-
-[[package]]
-name = "fourier"
-version = "0.1.0"
-dependencies = [
- "fft_lib",
-]
