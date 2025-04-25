@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 fft_lib = { path = "fft_lib" }
+piston_window = "0.132.0"
