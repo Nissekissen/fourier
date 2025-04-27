@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 pub struct FftResult {
     pub real: Vec<f64>,
     pub imag: Vec<f64>,
@@ -11,7 +13,8 @@ fn twiddle_factor(k: f64, N: usize) -> (f64, f64) {
 fn bit_reverse(n: u64, num_bits: u32) -> u64 {
     let mut reversed = 0;
     for i in 0..num_bits {
-        if (n >> i) & 1 != 0 { // Kontrollera om den i-te biten är satt
+        if (n >> i) & 1 != 0 {
+            // Kontrollera om den i-te biten är satt
             reversed |= 1 << (num_bits - 1 - i); // Sätt motsvarande bit i reversed
         }
     }

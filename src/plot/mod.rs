@@ -33,6 +33,14 @@ impl Plot {
         }
     }
 
+    pub fn width(&self) -> f64 {
+        self.width
+    }
+
+    pub fn height(&self) -> f64 {
+        self.height
+    }
+
     pub fn caption(mut self, content: &str) -> Self {
         let x = self.x + self.width / 2.0;
         let y = self.y - 10.0;
@@ -99,13 +107,16 @@ impl Plot {
     }
 
     pub fn point<G: Graphics>(&self, color: Color, x: f64, y: f64, c: &Context, g: &mut G) {
-        let transform = c.trans(self.x + x, self.y + y);
-
         rectangle(
             color,
             [self.x + x, self.y + y, self.x + x, self.y + y],
             c.transform,
             g,
         );
+    }
+
+    pub fn rect<G: Graphics>(&self, color: Color, corners: [f64; 4], c: &Context, g: &mut G) {
+        let transform = c.trans(self.x, self.y).transform;
+        rectangle(color, corners, transform, g);
     }
 }
