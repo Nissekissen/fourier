@@ -165,26 +165,26 @@ pub fn dft(in_data: &[f64]) -> FftResult {
     FftResult { real, imag }
 }
 
-#[cfg(test)]
-pub fn compare_speed() {
-    let in_data: Vec<f64> = (0..1024).map(|x| (x as f64).sin()).collect();
-
-    let start_dft = std::time::Instant::now();
-    let _ = dft(&in_data);
-    let duration_dft = start_dft.elapsed();
-    println!("DFT took: {:?}", duration_dft);
-
-    let start_fft = std::time::Instant::now();
-    let _ = fft(&in_data);
-    let duration_fft = start_fft.elapsed();
-    println!("FFT took: {:?}", duration_fft);
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use assert_float_eq::assert_float_absolute_eq;
-
+    
+    pub fn compare_speed() {
+        let in_data: Vec<f64> = (0..1024).map(|x| (x as f64).sin()).collect();
+    
+        let start_dft = std::time::Instant::now();
+        let _ = dft(&in_data);
+        let duration_dft = start_dft.elapsed();
+        println!("DFT took: {:?}", duration_dft);
+    
+        let start_fft = std::time::Instant::now();
+        let _ = fft(&in_data);
+        let duration_fft = start_fft.elapsed();
+        println!("FFT took: {:?}", duration_fft);
+    }
+    
     fn assert_float_vec_eq(a: &[f64], b: &[f64]) {
         assert_eq!(a.len(), b.len(), "Vectors have different lengths");
         for (i, (&x, &y)) in a.iter().zip(b.iter()).enumerate() {
