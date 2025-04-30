@@ -4,5 +4,5 @@ build/
 .vscode/
 !.vscode/extensions.json
 
-*.wav
 audio/
+*.wav

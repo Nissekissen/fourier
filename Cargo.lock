@@ -9,6 +9,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10d2119f741b79fe9907f5396d19bffcb46568cfcc315e78677d731972ac7085"
 
 [[package]]
+name = "audio_lib"
+version = "0.1.0"
+dependencies = [
+ "hound",
+]
+
+[[package]]
 name = "fft_lib"
 version = "0.1.0"
 dependencies = [
@@ -19,5 +26,12 @@ dependencies = [
 name = "fourier"
 version = "0.1.0"
 dependencies = [
+ "audio_lib",
  "fft_lib",
 ]
+
+[[package]]
+name = "hound"
+version = "3.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f"
