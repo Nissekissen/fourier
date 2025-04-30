@@ -1,13 +1,72 @@
 #![allow(non_snake_case)]
 
+/// Represents the result of a Fast Fourier Transform (FFT).
+#[derive(Debug)]
 pub struct FftResult {
+    /// Vector containing the real components of the FFT result.
     pub real: Vec<f64>,
+    /// Vector containing the imaginary components of the FFT result.
     pub imag: Vec<f64>,
+}
+
+/// Represent the frequencies in a range of samples
+pub struct Frequencies {
+    /// The frequencies corresponding to the FFT result.
+    pub frequencies: Vec<f64>,
+    /// The amplitudes corresponding to the FFT result.
+    pub amplitudes: Vec<f64>,
+    /// The total number of samples.
+    pub total_samples: usize,
+    /// The sample rate of the input signal.
+    pub sample_rate: u32,
+    /// The start time of the signal.
+    pub start_time: f64,
 }
 
 fn twiddle_factor(k: f64, N: usize) -> (f64, f64) {
     let angle = -2.0 * std::f64::consts::PI * k / (N as f64);
     (angle.cos(), angle.sin())
+}
+
+/// Calculates the frequencies corresponding to each element in the FFT result.
+///
+/// # Arguments
+///
+/// * `fft_result` - A reference to the `FftResult` struct containing the real and imaginary components of the FFT.
+/// * `sample_rate` - The sample rate of the input signal.
+///
+/// # Returns
+///
+/// A `Frequencies` struct containing the frequencies, amplitudes, total samples, sample rate, and start time.
+/// You need to set the start time manually, as it is not calculated in this function.
+pub fn get_frequenices(fft_result: &FftResult, sample_rate: u32) -> Frequencies {
+    let N = fft_result.real.len();
+    let mut frequencies = Vec::with_capacity(N / 2);
+    let mut amplitudes = Vec::with_capacity(N / 2);
+    let mut start_time = 0.0;
+    let mut total_samples = 0;
+    let sample_rate = sample_rate as f64;
+
+    for i in 0..N / 2 {
+        let frequency = (i as f64) * sample_rate / (N as f64);
+        frequencies.push(frequency);
+        let amplitude = ((fft_result.real[i] * fft_result.real[i])
+            + (fft_result.imag[i] * fft_result.imag[i]))
+            .sqrt();
+        amplitudes.push(amplitude);
+    }
+    if N > 0 {
+        start_time = 1.0 / sample_rate;
+        total_samples = N;
+    }
+
+    Frequencies {
+        frequencies,
+        amplitudes,
+        total_samples,
+        sample_rate: sample_rate as u32,
+        start_time,
+    }
 }
 
 fn bit_reverse(n: u64, num_bits: u32) -> u64 {
@@ -21,8 +80,27 @@ fn bit_reverse(n: u64, num_bits: u32) -> u64 {
     reversed
 }
 
+/// Performs a Fast Fourier Transform (FFT) on the given input data.
+///
+/// # Arguments
+///
+/// * `in_data` - A slice of f64 values representing the input data.
+///
+/// # Returns
+///
+/// An `FftResult` struct containing the real and imaginary components of the FFT.
+///
+/// # Errors
+///
+/// This function will return an error if the input length is not a power of 2 or if the input length is 0.
 pub fn fft(in_data: &[f64]) -> FftResult {
     let N = in_data.len();
+
+    // N needs to be a power of 2
+    if N == 0 || (N & (N - 1)) != 0 {
+        panic!("Input length must be a power of 2 and greater than 0.");
+    }
+
     let mut real: Vec<f64> = vec![0.0; N];
     let mut imag: Vec<f64> = vec![0.0; N];
 

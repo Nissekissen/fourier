@@ -1,4 +1,3 @@
-use fft_lib::{fft, FftResult};
 use piston_window::{color::BLACK, *};
 
 mod plot;
@@ -7,7 +6,7 @@ mod utils;
 use plot::Plot;
 use utils::circular_vec::CircularVec;
 
-const HISTORY_LENGTH: usize = 512;
+const HISTORY_LENGTH: usize = 2_usize.pow(16);
 const NUM_FREQUENCIES: usize = 32;
 const WINDOW_WIDTH: u32 = 600;
 const WINDOW_HEIGHT: u32 = 400;
@@ -28,13 +27,15 @@ fn main() {
     .x_axis_label("Time (s)")
     .y_axis_label("Frequency (Hz)");
 
-    let mut fft_data: CircularVec<FftResult> = CircularVec::new(HISTORY_LENGTH);
+    let mut fft_data: CircularVec<fft_lib::Frequencies> = CircularVec::new(HISTORY_LENGTH);
     for _i in 0..HISTORY_LENGTH {
         let mut data: Vec<f64> = Vec::with_capacity(NUM_FREQUENCIES);
         for j in 0..NUM_FREQUENCIES {
             data.push((j as f64 * 0.1).sin() * 10.0);
         }
-        fft_data.push(fft(&data));
+        let result = fft_lib::fft(&data);
+        let frequencies = fft_lib::get_frequenices(&result, 44100);
+        fft_data.push(frequencies);
     }
 
     while let Some(event) = window.next() {
@@ -48,12 +49,15 @@ fn main() {
                 let fft = fft_data.get(i).unwrap();
 
                 for (i, (_frequency, decibel)) in fft.real.iter().zip(&fft.imag).enumerate() {
+                    let height = (decibel / MAX_LOUDNESS);
+                    println!("{} Hz: {} dB", _frequency, decibel);
                     let x1 = (i * 5) as f64;
                     let y1 = plot.height() as f64;
                     let x2 = x1 + 5.0;
                     let y2 = y1 - (decibel / MAX_LOUDNESS) as f64;
 
-                    plot.rect(BLACK, [x1, y1, x2, y2], &c, g);
+                    rectangle([0.0, 0.0, 0.0, 1.0], [x1, y1, x2, y2], c.transform, g);
+                    // plot.rect(BLACK, [x1, y1, x2, y2], &c, g);
                 }
             });
 
