@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use piston_window::{color::BLACK, *};
 
 mod plot;
@@ -8,9 +10,10 @@ use utils::circular_vec::CircularVec;
 
 const HISTORY_LENGTH: usize = 2_usize.pow(16);
 const NUM_FREQUENCIES: usize = 32;
-const WINDOW_WIDTH: u32 = 600;
-const WINDOW_HEIGHT: u32 = 400;
-const MAX_LOUDNESS: f64 = 10.0; // TODO: Adjust this
+const WINDOW_WIDTH: u32 = 1200;
+const WINDOW_HEIGHT: u32 = 600;
+const MAX_LOUDNESS: f64 = 8.0; // TODO: Adjust this
+const SAMPLE_RATE: u32 = 48_000;
 
 fn main() {
     let mut window: PistonWindow = WindowSettings::new("FFT", [WINDOW_WIDTH, WINDOW_HEIGHT])
@@ -18,6 +21,7 @@ fn main() {
         .build()
         .unwrap();
     let mut frame_count: u64 = 0;
+    let mut last_time = Instant::now();
 
     let plot = Plot::new(
         (20.0, 20.0),
@@ -34,7 +38,7 @@ fn main() {
             data.push((j as f64 * 0.1).sin() * 10.0);
         }
         let result = fft_lib::fft(&data);
-        let frequencies = fft_lib::get_frequenices(&result, 44100);
+        let frequencies = fft_lib::get_frequenices(&result, SAMPLE_RATE);
         fft_data.push(frequencies);
     }
 
@@ -46,22 +50,33 @@ fn main() {
                 plot.draw_bg(&c, g);
 
                 let i = frame_count as usize % fft_data.len();
-                let fft = fft_data.get(i).unwrap();
+                let f = fft_data.get(i).unwrap();
 
-                for (i, (_frequency, decibel)) in fft.real.iter().zip(&fft.imag).enumerate() {
-                    let height = (decibel / MAX_LOUDNESS);
-                    println!("{} Hz: {} dB", _frequency, decibel);
-                    let x1 = (i * 5) as f64;
-                    let y1 = plot.height() as f64;
-                    let x2 = x1 + 5.0;
-                    let y2 = y1 - (decibel / MAX_LOUDNESS) as f64;
+                for (i, decibel) in f.amplitudes.iter().enumerate() {
+                    let bar_width = (plot.width() / NUM_FREQUENCIES as f64) * 0.8;
+                    let x =
+                        (i as f64 / NUM_FREQUENCIES as f64) * plot.width() + bar_width * 0.1 + 5.0;
+                    let normalized_height = (decibel / MAX_LOUDNESS).abs() * plot.height();
 
-                    rectangle([0.0, 0.0, 0.0, 1.0], [x1, y1, x2, y2], c.transform, g);
-                    // plot.rect(BLACK, [x1, y1, x2, y2], &c, g);
+                    let bar_height = normalized_height;
+                    let y = plot.height() - bar_height;
+
+                    plot.rect(BLACK, [x, y, bar_width, bar_height], &c, g);
                 }
             });
+        }
+        frame_count += 1;
 
-            frame_count += 1;
+        if let Some(_update) = event.update_args() {
+            let now = Instant::now();
+            let elapsed = now.duration_since(last_time);
+
+            if elapsed >= Duration::from_secs(1) {
+                let fps = frame_count as f32 / elapsed.as_secs_f32();
+                println!("FPS: {}", fps);
+                frame_count = 0;
+                last_time = now;
+            }
         }
     }
 }
