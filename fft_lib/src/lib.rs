@@ -8,6 +8,7 @@ pub struct FftResult {
 }
 
 /// Represent the frequencies in a range of samples
+#[derive(Debug)]
 pub struct Frequencies {
     /// The frequencies corresponding to the FFT result.
     pub frequencies: Vec<f64>,

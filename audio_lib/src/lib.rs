@@ -1,11 +1,61 @@
 // Crate for audio processing
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::sync::mpsc::Sender;
 
 pub struct Audio {
     pub sample_rate: u32,
     pub duration: u32, // in milliseconds
-    pub length: u32, // number of samples
+    pub length: u32,   // number of samples
     pub raw_data: Vec<f32>,
     pub chunked_data: Vec<Vec<f64>>,
+}
+
+pub struct AudioCapture {
+    stream: cpal::Stream,
+}
+
+impl AudioCapture {
+    pub fn new(tx: Sender<Vec<f32>>) -> Result<Self, anyhow::Error> {
+        let host = cpal::default_host();
+        let device = host
+            .default_input_device()
+            .ok_or_else(|| anyhow::anyhow!("No input device available"))?;
+
+        let supported_config = device.default_input_config()?; // Safe default
+        let config = cpal::StreamConfig {
+            channels: supported_config.channels(),
+            sample_rate: supported_config.sample_rate(),
+            buffer_size: cpal::BufferSize::Default, // Let cpal/device choose a safe buffer
+        };
+
+        println!("Sample rate: {}", config.sample_rate.0);
+
+        let mut chunk = Vec::with_capacity(1024);
+
+        let stream = device.build_input_stream(
+            &config,
+            move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                for &sample in data {
+                    chunk.push(sample);
+                    if chunk.len() >= 1024 {
+                        if tx.send(chunk.clone()).is_err() {
+                            eprintln!("Failed to send audio data to the channel.");
+                        }
+                        chunk.clear();
+                    }
+                }
+            },
+            |err| eprintln!("Error occurred on stream: {}", err),
+            None,
+        )?;
+
+        Ok(Self { stream })
+    }
+
+    pub fn start(&mut self) -> Result<(), anyhow::Error> {
+        self.stream.play()?;
+        Ok(())
+    }
 }
 
 pub fn wav_file_to_vec(file_path: &str) -> Result<Audio, String> {
@@ -40,5 +90,11 @@ pub fn wav_file_to_vec(file_path: &str) -> Result<Audio, String> {
         })
         .collect();
 
-    Ok(Audio { sample_rate, duration, length, raw_data, chunked_data })
+    Ok(Audio {
+        sample_rate,
+        duration,
+        length,
+        raw_data,
+        chunked_data,
+    })
 }
