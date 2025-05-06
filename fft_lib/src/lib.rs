@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 /// Represents the result of a Fast Fourier Transform (FFT).
 #[derive(Debug)]
 pub struct FftResult {
@@ -48,7 +50,9 @@ pub fn get_frequenices(fft_result: &FftResult, sample_rate: u32) -> Frequencies 
     for i in 0..N / 2 {
         let frequency = (i as f64) * sample_rate / (N as f64);
         frequencies.push(frequency);
-        let amplitude = ((fft_result.real[i] * fft_result.real[i]) + (fft_result.imag[i] * fft_result.imag[i])).sqrt();
+        let amplitude = ((fft_result.real[i] * fft_result.real[i])
+            + (fft_result.imag[i] * fft_result.imag[i]))
+            .sqrt();
         amplitudes.push(amplitude);
     }
     if N > 0 {
@@ -68,7 +72,8 @@ pub fn get_frequenices(fft_result: &FftResult, sample_rate: u32) -> Frequencies 
 fn bit_reverse(n: u64, num_bits: u32) -> u64 {
     let mut reversed = 0;
     for i in 0..num_bits {
-        if (n >> i) & 1 != 0 { // Kontrollera om den i-te biten är satt
+        if (n >> i) & 1 != 0 {
+            // Kontrollera om den i-te biten är satt
             reversed |= 1 << (num_bits - 1 - i); // Sätt motsvarande bit i reversed
         }
     }
