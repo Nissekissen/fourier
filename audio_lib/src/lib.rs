@@ -3,12 +3,12 @@
 pub struct Audio {
     pub sample_rate: u32,
     pub duration: u32, // in milliseconds
-    pub length: u32, // number of samples
+    pub length: u32,   // number of samples
     pub raw_data: Vec<f32>,
     pub chunked_data: Vec<Vec<f64>>,
 }
 
-pub fn wav_file_to_vec(file_path: &str) -> Result<Audio, String> {
+pub fn wav_file_to_vec(file_path: &str, chunk_size: u32) -> Result<Audio, String> {
     use hound::{WavReader, WavSpec};
     use std::fs::File;
     use std::io::BufReader;
@@ -26,8 +26,6 @@ pub fn wav_file_to_vec(file_path: &str) -> Result<Audio, String> {
         .map(|s| s.unwrap() as f32 / i16::MAX as f32) // Normalize to f32 in the range [-1.0, 1.0]
         .collect();
 
-    // CHunk the data into chunks of 1024 samples
-    let chunk_size = 1024;
     let chunked_data: Vec<Vec<f64>> = raw_data
         .chunks(chunk_size as usize)
         .map(|chunk| {
@@ -40,5 +38,11 @@ pub fn wav_file_to_vec(file_path: &str) -> Result<Audio, String> {
         })
         .collect();
 
-    Ok(Audio { sample_rate, duration, length, raw_data, chunked_data })
+    Ok(Audio {
+        sample_rate,
+        duration,
+        length,
+        raw_data,
+        chunked_data,
+    })
 }

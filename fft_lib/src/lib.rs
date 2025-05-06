@@ -10,6 +10,7 @@ pub struct FftResult {
 }
 
 /// Represent the frequencies in a range of samples
+#[derive(Debug)]
 pub struct Frequencies {
     /// The frequencies corresponding to the FFT result.
     pub frequencies: Vec<f64>,
@@ -39,7 +40,7 @@ fn twiddle_factor(k: f64, N: usize) -> (f64, f64) {
 ///
 /// A `Frequencies` struct containing the frequencies, amplitudes, total samples, sample rate, and start time.
 /// You need to set the start time manually, as it is not calculated in this function.
-pub fn get_frequenices(fft_result: &FftResult, sample_rate: u32) -> Frequencies {
+pub fn get_frequencies(fft_result: &FftResult, sample_rate: u32) -> Frequencies {
     let N = fft_result.real.len();
     let mut frequencies = Vec::with_capacity(N / 2);
     let mut amplitudes = Vec::with_capacity(N / 2);
@@ -170,26 +171,25 @@ pub fn dft(in_data: &[f64]) -> FftResult {
     FftResult { real, imag }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use assert_float_eq::assert_float_absolute_eq;
-    
+
     pub fn compare_speed() {
         let in_data: Vec<f64> = (0..1024).map(|x| (x as f64).sin()).collect();
-    
+
         let start_dft = std::time::Instant::now();
         let _ = dft(&in_data);
         let duration_dft = start_dft.elapsed();
         println!("DFT took: {:?}", duration_dft);
-    
+
         let start_fft = std::time::Instant::now();
         let _ = fft(&in_data);
         let duration_fft = start_fft.elapsed();
         println!("FFT took: {:?}", duration_fft);
     }
-    
+
     fn assert_float_vec_eq(a: &[f64], b: &[f64]) {
         assert_eq!(a.len(), b.len(), "Vectors have different lengths");
         for (i, (&x, &y)) in a.iter().zip(b.iter()).enumerate() {
