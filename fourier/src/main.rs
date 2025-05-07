@@ -22,6 +22,7 @@ const WINDOW_HEIGHT: u32 = 600;
 const MAX_LOUDNESS: f64 = 0.05; // TODO: Adjust this for microphone sensitivity
 // const SAMPLE_RATE: u32 = 48_000; // Will be obtained from AudioSource
 const CHUNK_SIZE: usize = 256; // Chunk size for audio processing, might need adjustment for mic
+const FILE_PATH: &str = "./audio/hank.wav"; // Path to the audio file
 
 fn main() {
     // --- 1. Initialize PistonWindow and Plot ---
@@ -43,14 +44,14 @@ fn main() {
 
     // Using WavFileSource
     let wav_source =
-        WavFileSource::new("./audio/meow.wav").expect("Failed to create Wavsource");
+        WavFileSource::new(FILE_PATH).expect("Failed to create Wavsource");
     let sample_rate = wav_source.get_sample_rate();
 
     let mut audio_streamer = AudioStreamer::new(wav_source, CHUNK_SIZE);
 
     // --- Setup rodio playback components (but don't start playing yet) ---
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    let file_for_playback = BufReader::new(File::open("./audio/meow.wav").unwrap());
+    let file_for_playback = BufReader::new(File::open(FILE_PATH).unwrap());
     let source_for_playback = Decoder::new(file_for_playback).unwrap();
 
     // Store only the latest FFT data for display
