@@ -2,8 +2,8 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use hound::{WavReader, WavSpec};
 use std::fs::File;
 use std::io::BufReader;
-use std::sync::mpsc::{Sender}; // Removed unused `channel` and `Receiver` here, but `Sender` is used.
-use std::time::Duration;
+use std::sync::mpsc::Sender;
+use std::time::{Duration, Instant}; // Modified this line
 // std::thread is not directly used in this file anymore after the change, but keep if other parts use it.
 
 pub trait AudioSource {
@@ -93,6 +93,7 @@ impl AudioSource for WavFileSource {
     fn start_streaming(&mut self, sender: Sender<Vec<f32>>, chunk_size: usize) -> Result<(), anyhow::Error> {
         let sample_rate = self.spec.sample_rate;
         let mut buffer = vec![0.0; chunk_size];
+        let mut next_chunk_target_time = Instant::now();
 
         loop {
             let mut written = 0;
@@ -102,18 +103,26 @@ impl AudioSource for WavFileSource {
                     buffer[i] = sample as f32 / i16::MAX as f32;
                     written += 1;
                 } else {
-                    break;
+                    break; // End of file
                 }
             }
 
             if written > 0 {
+                let actual_data_duration = Duration::from_secs_f32(written as f32 / sample_rate as f32);
+
                 if sender.send(buffer[0..written].to_vec()).is_err() {
                     eprintln!("WAV stream: Receiver dropped. Stopping.");
                     return Ok(()); 
                 }
-                std::thread::sleep(Duration::from_secs_f32(written as f32 / sample_rate as f32));
+                
+                next_chunk_target_time += actual_data_duration;
+
+                let current_time = Instant::now();
+                if next_chunk_target_time > current_time {
+                    std::thread::sleep(next_chunk_target_time - current_time);
+                }
             } else {
-                break;
+                break; // No data written, means end of file.
             }
         }
         Ok(())

@@ -1,10 +1,7 @@
-[package]
-name = "fourier"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-fft_lib = { path = "fft_lib" }
-audio_lib = { path = "audio_lib" }
-anyhow = "1.0"
-piston_window = "0.132.0"
+[workspace]
+members = [
+    "fft_lib",
+    "audio_lib",
+    "fourier",
+]
+resolver = "2"
