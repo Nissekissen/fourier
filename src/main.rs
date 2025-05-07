@@ -1,8 +1,8 @@
-use std::{net::TcpStream, sync::mpsc::channel};
-use std::time::Duration;
-use fft_lib::{fft, FftResult, Frequencies, get_frequenices};
-use audio_lib::{AudioSource, WavFileSource, MicrophoneSource, AudioStreamer};
+use audio_lib::{AudioSource, AudioStreamer, MicrophoneSource, WavFileSource};
+use fft_lib::{fft, get_frequenices, FftResult, Frequencies};
 use std::thread;
+use std::time::Duration;
+use std::{net::TcpStream, sync::mpsc::channel};
 
 fn main() -> Result<(), anyhow::Error> {
     let (audio_sender, audio_receiver) = channel::<Vec<f32>>();
@@ -10,7 +10,7 @@ fn main() -> Result<(), anyhow::Error> {
     // --- Microphone Stream Setup ---
     let mic_source = MicrophoneSource::new()?;
     let sample_rate = mic_source.get_sample_rate();
-    let mut mic_streamer = AudioStreamer::new(mic_source);
+    let mut mic_streamer = AudioStreamer::new(mic_source, 128_usize);
 
     // Run the microphone streamer in a separate thread
     let mic_thread_handle = thread::spawn(move || {
@@ -30,7 +30,10 @@ fn main() -> Result<(), anyhow::Error> {
                 let fft_result = fft(&data_chunk.iter().map(|&x| x as f64).collect::<Vec<f64>>());
                 let frequencies = get_frequenices(&fft_result, sample_rate as u32);
                 let avg_first_5 = frequencies.amplitudes.iter().take(5).sum::<f64>() / 5.0;
-                println!("Average of amplitudes 0-{}: {}", frequencies.frequencies[4], avg_first_5);
+                println!(
+                    "Average of amplitudes 0-{}: {}",
+                    frequencies.frequencies[4], avg_first_5
+                );
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 // You can add logic here if no data is received for a while
@@ -43,7 +46,10 @@ fn main() -> Result<(), anyhow::Error> {
                 continue;
             }
             Err(e) => {
-                eprintln!("Main thread: Error receiving audio data: {}. Exiting loop.", e);
+                eprintln!(
+                    "Main thread: Error receiving audio data: {}. Exiting loop.",
+                    e
+                );
                 break;
             }
         }

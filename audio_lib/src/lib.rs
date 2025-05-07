@@ -10,7 +10,7 @@ pub trait AudioSource {
     fn get_sample_rate(&self) -> u32;
     fn get_duration(&self) -> Duration;
     fn get_length(&self) -> u64;
-    fn start_streaming(&mut self, sender: Sender<Vec<f32>>) -> Result<(), anyhow::Error>;
+    fn start_streaming(&mut self, sender: Sender<Vec<f32>>, chunk_size: usize) -> Result<(), anyhow::Error>;
 }
 
 /// Wav file source for audio streaming.
@@ -21,7 +21,7 @@ pub trait AudioSource {
 /// let wav_source = WavFileSource::new("path/to/audio.wav")
 ///    .map_err(|e| anyhow::anyhow!("Failed to create WavFileSource: {}", e))?;
 /// let sample_rate = wav_source.get_sample_rate();
-/// let mut wav_streamer = AudioStreamer::new(wav_source);
+/// let mut wav_streamer = AudioStreamer::new(wav_source, 128_usize);
 /// 
 /// // Run the WAV streamer in a separate thread
 /// let wav_thread_handle = std::thread::spawn(move || {
@@ -90,14 +90,13 @@ impl AudioSource for WavFileSource {
         self.length
     }
 
-    fn start_streaming(&mut self, sender: Sender<Vec<f32>>) -> Result<(), anyhow::Error> {
+    fn start_streaming(&mut self, sender: Sender<Vec<f32>>, chunk_size: usize) -> Result<(), anyhow::Error> {
         let sample_rate = self.spec.sample_rate;
-        let buffer_size = 128; 
-        let mut buffer = vec![0.0; buffer_size];
+        let mut buffer = vec![0.0; chunk_size];
 
         loop {
             let mut written = 0;
-            for i in 0..buffer_size {
+            for i in 0..chunk_size {
                 if let Some(sample_result) = self.reader.samples::<i16>().next() {
                     let sample = sample_result.map_err(|e| anyhow::anyhow!("Error reading sample: {}", e))?;
                     buffer[i] = sample as f32 / i16::MAX as f32;
@@ -129,7 +128,7 @@ impl AudioSource for WavFileSource {
 /// let mic_source = MicrophoneSource::new()
 ///    .map_err(|e| anyhow::anyhow!("Failed to create MicrophoneSource: {}", e))?;
 /// let sample_rate = mic_source.get_sample_rate(); // If you need to use it, save it here
-/// let mut mic_streamer = AudioStreamer::new(mic_source);
+/// let mut mic_streamer = AudioStreamer::new(mic_source, 128_usize);
 /// 
 /// // Run the microphone streamer in a separate thread
 /// let mic_thread_handle = std::thread::spawn(move || {
@@ -201,7 +200,7 @@ impl AudioSource for MicrophoneSource {
         u64::MAX // Indefinite for microphone
     }
 
-    fn start_streaming(&mut self, sender: Sender<Vec<f32>>) -> Result<(), anyhow::Error> {
+    fn start_streaming(&mut self, sender: Sender<Vec<f32>>, chunk_size: usize) -> Result<(), anyhow::Error> {
         let err_fn = |err| eprintln!("An error occurred on the audio stream: {}", err);
 
         // Channel to signal this function to stop from the audio callback
@@ -209,17 +208,16 @@ impl AudioSource for MicrophoneSource {
 
         let callback_sender = sender.clone(); // Clone sender for the callback
         
-        let desired_chunk_size: usize = 128;
-        let mut internal_buffer: Vec<f32> = Vec::with_capacity(desired_chunk_size * 2); // Pre-allocate some space
+        let mut internal_buffer: Vec<f32> = Vec::with_capacity(chunk_size * 2); // Pre-allocate some space
 
         let stream = self.device.build_input_stream(
             &self.config,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
                 internal_buffer.extend_from_slice(data);
 
-                while internal_buffer.len() >= desired_chunk_size {
+                while internal_buffer.len() >= chunk_size {
                     // Drain the first desired_chunk_size elements from the buffer
-                    let chunk_to_send: Vec<f32> = internal_buffer.drain(0..desired_chunk_size).collect();
+                    let chunk_to_send: Vec<f32> = internal_buffer.drain(0..chunk_size).collect();
                     
                     if callback_sender.send(chunk_to_send).is_err() {
                         // Receiver has been dropped, signal the main streaming loop to stop.
@@ -250,29 +248,49 @@ impl AudioSource for MicrophoneSource {
             }
         }
         // When this function returns, `stream` is dropped, and the cpal stream stops.
-        // Note: Any data remaining in internal_buffer that is less than desired_chunk_size
+        // Note: Any data remaining in internal_buffer that is less than chunk_size
         // will not be sent when the stream stops.
         Ok(())
     }
 }
 
+/// AudioStreamer struct for streaming audio data from a source.
 pub struct AudioStreamer<T: AudioSource + Send + 'static> {
     source: T,
     sample_rate: u32,
+    chunk_size: usize,
     #[allow(dead_code)] // channels is not used yet
     channels: u16,
 }
 
 impl<T: AudioSource + Send + 'static> AudioStreamer<T> {
-    pub fn new(source: T) -> Self {
+    /// Creates a new AudioStreamer instance.
+    /// # Arguments
+    /// * `source` - The audio source to stream from.
+    /// * `chunk_size` - The size of the audio chunks to stream.
+    /// # Returns
+    /// A new `AudioStreamer` instance.
+    /// # Panics
+    /// If the chunk size is not a power of 2.
+    pub fn new(source: T, chunk_size: usize) -> Self {
         let sample_rate = source.get_sample_rate();
         let channels = 1; // Assuming mono for now, or get from source if available/needed
-        AudioStreamer { source, sample_rate, channels }
+
+        if chunk_size != chunk_size.next_power_of_two() {
+            panic!("Chunk size must be a power of 2.");
+        }
+
+        AudioStreamer { source, sample_rate, channels, chunk_size }
     }
 
+    /// Starts streaming audio data from the source.
+    /// # Arguments
+    /// * `sender` - The channel sender to send audio data to.,
+    /// # Returns
+    /// A result indicating success or failure.
     pub fn run(&mut self, sender: Sender<Vec<f32>>) -> Result<(), anyhow::Error> {
         println!("AudioStreamer: Starting source streaming...");
-        self.source.start_streaming(sender)?;
+        self.source.start_streaming(sender, self.chunk_size)?;
         println!("AudioStreamer: Source streaming finished.");
         Ok(())
     }
