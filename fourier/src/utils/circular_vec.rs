@@ -69,6 +69,7 @@ impl<T> CircularVec<T> {
         CircularVecIter {
             cv: &self,
             index: 0,
+            back_index: self.len as isize - 1,
         }
     }
 }
@@ -88,15 +89,30 @@ impl<'a, T> Drop for CircularVec<T> {
 
 pub struct CircularVecIter<'a, T> {
     cv: &'a CircularVec<T>,
-    index: usize,
+    index: isize,
+    back_index: isize,
 }
 
 impl<'a, T> Iterator for CircularVecIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let it = self.cv.get(self.index);
+        if self.index > self.back_index {
+            return None;
+        }
+        let it = self.cv.get(self.index.try_into().unwrap());
         self.index += 1;
+        it
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for CircularVecIter<'a, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.back_index < self.index {
+            return None;
+        }
+        let it = self.cv.get(self.back_index.try_into().unwrap());
+        self.back_index -= 1;
         it
     }
 }
@@ -137,5 +153,28 @@ mod tests {
         assert_eq!(cv.get(1), Some(&3));
         assert_eq!(cv.get(2), Some(&4));
         assert_eq!(cv.len(), 3);
+    }
+
+    #[test]
+    fn test_double_ended_iterator() {
+        let mut cv: CircularVec<i32> = CircularVec::new(3);
+        cv.push(1);
+        cv.push(2);
+        cv.push(3);
+
+        let mut iter = cv.iter();
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next_back(), Some(&3));
+        assert_eq!(iter.next(), Some(&2));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next_back(), None);
+
+        // Test collecting into a vector from both ends
+        let collected: Vec<_> = cv.iter().collect();
+        assert_eq!(collected, vec![&1, &2, &3]);
+
+        // Test pure reverse iteration
+        let reverse: Vec<_> = cv.iter().rev().collect();
+        assert_eq!(reverse, vec![&3, &2, &1]);
     }
 }
