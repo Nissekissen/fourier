@@ -8,6 +8,7 @@ use fft_lib::{fft, get_frequencies};
 use plot::bar_visualizer::{BarVisualizer, Rotation};
 
 use piston_window::{color::BLACK, *};
+use plot::scrolling_visualizer::ScrollingVisualizer;
 use plot::Visualizer;
 use rodio::{source::Source, Decoder, OutputStream};
 use std::fs::File;
@@ -25,7 +26,7 @@ const FILE_PATH: &'static str = "./audio/pigstep.wav"; // Path to the audio file
 fn main() {
     // Initialize the visualization components
     let num_bars = CHUNK_SIZE / 2;
-    let (mut window, visualizer) = initialize_visualization(num_bars);
+    let (mut window, mut visualizer) = initialize_visualization(num_bars);
 
     // Set up audio processing
     let (audio_rx, audio_thread_handle, sample_rate) = setup_audio_streaming();
@@ -38,7 +39,7 @@ fn main() {
     // Start rodio playback
     let _ = stream_handle.play_raw(source_for_playback.convert_samples());
 
-    run_event_loop(&mut window, &visualizer, audio_rx, sample_rate);
+    run_event_loop(&mut window, &mut visualizer, audio_rx, sample_rate);
 
     // Cleanup
     if audio_thread_handle.join().is_err() {
@@ -54,12 +55,19 @@ fn initialize_visualization(num_bars: usize) -> (PistonWindow, impl Visualizer) 
             .build()
             .unwrap();
 
-    let visualizer = BarVisualizer::new(
+    // let visualizer = BarVisualizer::new(
+    //     10.0,
+    //     10.0,
+    //     WINDOW_WIDTH as f64 - 20.0,
+    //     WINDOW_HEIGHT as f64 - 20.0,
+    //     Rotation::Up,
+    //     num_bars,
+    // );
+    let visualizer = ScrollingVisualizer::new(
         10.0,
         10.0,
         WINDOW_WIDTH as f64 - 20.0,
         WINDOW_HEIGHT as f64 - 20.0,
-        Rotation::Up,
         num_bars,
     );
 
@@ -127,10 +135,10 @@ fn process_audio_data(
 }
 
 /// Render the visualization
-fn render_visualization<G, V: Visualizer>(
+fn render_visualization<G>(
     c: Context,
     g: &mut G,
-    visualizer: &V,
+    visualizer: &mut impl Visualizer,
     latest_fft_data: &Option<fft_lib::Frequencies>,
     audio_stream_ended: bool,
     _glyph_cache: &mut Glyphs,
@@ -140,11 +148,11 @@ fn render_visualization<G, V: Visualizer>(
     clear([1.0; 4], g);
 
     if let Some(f) = latest_fft_data {
-        if f.frequencies.is_empty() {
-            return; // Avoid division by zero if frequencies list is empty
-        }
+        debug_assert_eq!(f.amplitudes.len(), f.frequencies.len());
+        debug_assert_eq!(f.amplitudes.len(), CHUNK_SIZE / 2);
+        assert!(f.frequencies.len() > 0);
 
-        visualizer.draw(f.amplitudes.as_slice(), &c, g);
+        visualizer.draw(&f.amplitudes, &c, g);
     } else if !audio_stream_ended {
     } else if audio_stream_ended && latest_fft_data.is_none() {
     }
@@ -153,7 +161,7 @@ fn render_visualization<G, V: Visualizer>(
 /// Run the main event loop
 fn run_event_loop(
     window: &mut PistonWindow,
-    visualizer: &impl Visualizer,
+    visualizer: &mut impl Visualizer,
     audio_rx: Receiver<Vec<f32>>,
     sample_rate: u32,
 ) {

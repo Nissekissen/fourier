@@ -66,10 +66,28 @@ impl<T> CircularVec<T> {
     }
 
     pub fn iter(&self) -> CircularVecIter<T> {
+        let current_pos = if self.len == self.capacity {
+            self.head as isize
+        } else {
+            0
+        };
+        let back_pos = if self.head == 0 {
+            self.len as isize - 1
+        } else {
+            self.head as isize - 1
+        };
+
+        dbg!(current_pos);
+        dbg!(back_pos);
+        dbg!(self.head);
+        dbg!(self.len);
+        dbg!(self.capacity);
+
         CircularVecIter {
-            cv: &self,
-            index: 0,
-            back_index: self.len as isize - 1,
+            cv: self,
+            current_pos,
+            back_pos,
+            items_left: self.len,
         }
     }
 }
@@ -89,31 +107,48 @@ impl<'a, T> Drop for CircularVec<T> {
 
 pub struct CircularVecIter<'a, T> {
     cv: &'a CircularVec<T>,
-    index: isize,
-    back_index: isize,
+    current_pos: isize,
+    back_pos: isize,
+    items_left: usize,
 }
 
 impl<'a, T> Iterator for CircularVecIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index > self.back_index {
+        dbg!(self.current_pos);
+        dbg!(self.back_pos);
+        if self.items_left == 0 {
             return None;
         }
-        let it = self.cv.get(self.index.try_into().unwrap());
-        self.index += 1;
+        let it = self.cv.get(self.current_pos.try_into().unwrap());
+        self.current_pos = (self.current_pos + 1) % self.cv.capacity as isize;
+        self.items_left -= 1;
         it
     }
 }
 
 impl<'a, T> DoubleEndedIterator for CircularVecIter<'a, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if self.back_index < self.index {
+        dbg!(self.current_pos);
+        dbg!(self.back_pos);
+        if self.items_left == 0 {
             return None;
         }
-        let it = self.cv.get(self.back_index.try_into().unwrap());
-        self.back_index -= 1;
+        let it = self.cv.get(self.back_pos.try_into().unwrap());
+        self.back_pos = if self.back_pos == 0 {
+            self.cv.len as isize - 1
+        } else {
+            self.back_pos - 1
+        };
+        self.items_left -= 1;
         it
+    }
+}
+
+impl<'a, T> ExactSizeIterator for CircularVecIter<'a, T> {
+    fn len(&self) -> usize {
+        self.items_left
     }
 }
 
@@ -176,5 +211,18 @@ mod tests {
         // Test pure reverse iteration
         let reverse: Vec<_> = cv.iter().rev().collect();
         assert_eq!(reverse, vec![&3, &2, &1]);
+    }
+
+    #[test]
+    fn test_with_strings() {
+        let mut cv: CircularVec<String> = CircularVec::new(2);
+        cv.push(String::from("hello"));
+        cv.push(String::from("world"));
+        assert_eq!(cv.get(0), Some(&String::from("hello")));
+        assert_eq!(cv.get(1), Some(&String::from("world")));
+
+        cv.push(String::from("rust"));
+        assert_eq!(cv.get(0), Some(&String::from("world")));
+        assert_eq!(cv.get(1), Some(&String::from("rust")));
     }
 }

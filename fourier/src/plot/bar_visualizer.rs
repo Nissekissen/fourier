@@ -40,7 +40,7 @@ impl BarVisualizer {
 }
 
 impl Visualizer for BarVisualizer {
-    fn draw<G: Graphics>(&self, data: &[f64], c: &Context, g: &mut G) {
+    fn draw<G: Graphics>(&mut self, data: &[f64], c: &Context, g: &mut G) {
         assert_eq!(data.len(), self.bars.len());
 
         let (same_dir_len, other_dir_len) = match self.rotation {
