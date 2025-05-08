@@ -77,12 +77,6 @@ impl<T> CircularVec<T> {
             self.head as isize - 1
         };
 
-        dbg!(current_pos);
-        dbg!(back_pos);
-        dbg!(self.head);
-        dbg!(self.len);
-        dbg!(self.capacity);
-
         CircularVecIter {
             cv: self,
             current_pos,
@@ -116,8 +110,6 @@ impl<'a, T> Iterator for CircularVecIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        dbg!(self.current_pos);
-        dbg!(self.back_pos);
         if self.items_left == 0 {
             return None;
         }
@@ -130,8 +122,6 @@ impl<'a, T> Iterator for CircularVecIter<'a, T> {
 
 impl<'a, T> DoubleEndedIterator for CircularVecIter<'a, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        dbg!(self.current_pos);
-        dbg!(self.back_pos);
         if self.items_left == 0 {
             return None;
         }
