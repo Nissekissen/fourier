@@ -26,7 +26,7 @@ pub struct Frequencies {
 
 fn twiddle_factor(k: f64, N: usize) -> (f64, f64) {
     let angle = -2.0 * std::f64::consts::PI * k / (N as f64);
-    (angle.cos(), angle.sin())
+    angle.sin_cos()
 }
 
 /// Calculates the frequencies corresponding to each element in the FFT result.
@@ -65,7 +65,7 @@ pub fn get_frequencies(fft_result: &FftResult, sample_rate: u32) -> Frequencies 
         frequencies,
         amplitudes,
         total_samples,
-        sample_rate: sample_rate as u32,
+        sample_rate,
         start_time,
     }
 }
@@ -126,7 +126,7 @@ pub fn fft(in_data: &[f64]) -> FftResult {
                 let b_real = real[i + j as usize + half_step as usize];
                 let b_imag = imag[i + j as usize + half_step as usize];
 
-                let (twiddle_real, twiddle_imag) = twiddle_factor(j as f64, n_step as usize);
+                let (twiddle_imag, twiddle_real) = twiddle_factor(j as f64, n_step as usize);
 
                 let temp_real = twiddle_real * b_real - twiddle_imag * b_imag;
                 let temp_imag = twiddle_real * b_imag + twiddle_imag * b_real;

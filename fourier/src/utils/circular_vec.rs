@@ -11,6 +11,7 @@ pub struct CircularVec<T> {
 
 impl<T> CircularVec<T> {
     pub fn new(capacity: usize) -> Self {
+        assert!(capacity > 0, "Capacity must be greater than 0");
         let layout = std::alloc::Layout::array::<T>(capacity).unwrap();
         let ptr = unsafe { std::alloc::alloc(layout) as *mut T };
 
@@ -32,7 +33,6 @@ impl<T> CircularVec<T> {
                 ptr::write(self.ptr.add(self.head), item);
                 self.len += 1;
             } else {
-                // Drop the overwritten item
                 ptr::drop_in_place(self.ptr.add(self.head));
                 ptr::write(self.ptr.add(self.head), item);
             }
@@ -41,12 +41,20 @@ impl<T> CircularVec<T> {
     }
 
     pub fn get(&self, index: usize) -> Option<&T> {
-        if index < self.len {
-            let real_index = (self.head + index) % self.capacity;
-            unsafe { Some(&*self.ptr.add(real_index)) }
-        } else {
-            None
+        if index >= self.len {
+            return None;
         }
+
+        // Calculate the actual index, taking into account wraparound
+        let actual_index = if self.len == self.capacity {
+            // Buffer is full, start from oldest
+            (self.head + index) % self.capacity
+        } else {
+            // Buffer is not full, start from beginning
+            index
+        };
+
+        unsafe { Some(&*self.ptr.add(actual_index)) }
     }
 
     pub fn len(&self) -> usize {
@@ -66,22 +74,10 @@ impl<T> CircularVec<T> {
     }
 
     pub fn iter(&self) -> CircularVecIter<T> {
-        let current_pos = if self.len == self.capacity {
-            self.head as isize
-        } else {
-            0
-        };
-        let back_pos = if self.head == 0 {
-            self.len as isize - 1
-        } else {
-            self.head as isize - 1
-        };
-
         CircularVecIter {
             cv: self,
-            current_pos,
-            back_pos,
-            items_left: self.len,
+            current_pos: 0,
+            back_pos: self.len as isize - 1,
         }
     }
 }
@@ -103,42 +99,29 @@ pub struct CircularVecIter<'a, T> {
     cv: &'a CircularVec<T>,
     current_pos: isize,
     back_pos: isize,
-    items_left: usize,
 }
 
 impl<'a, T> Iterator for CircularVecIter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.items_left == 0 {
+        if self.current_pos > self.back_pos {
             return None;
         }
         let it = self.cv.get(self.current_pos.try_into().unwrap());
-        self.current_pos = (self.current_pos + 1) % self.cv.capacity as isize;
-        self.items_left -= 1;
+        self.current_pos += 1;
         it
     }
 }
 
 impl<'a, T> DoubleEndedIterator for CircularVecIter<'a, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if self.items_left == 0 {
+        if self.back_pos < self.current_pos {
             return None;
         }
         let it = self.cv.get(self.back_pos.try_into().unwrap());
-        self.back_pos = if self.back_pos == 0 {
-            self.cv.len as isize - 1
-        } else {
-            self.back_pos - 1
-        };
-        self.items_left -= 1;
+        self.back_pos -= 1;
         it
-    }
-}
-
-impl<'a, T> ExactSizeIterator for CircularVecIter<'a, T> {
-    fn len(&self) -> usize {
-        self.items_left
     }
 }
 
@@ -214,5 +197,47 @@ mod tests {
         cv.push(String::from("rust"));
         assert_eq!(cv.get(0), Some(&String::from("world")));
         assert_eq!(cv.get(1), Some(&String::from("rust")));
+    }
+
+    #[test]
+    fn test_with_vectors() {
+        let mut cv: CircularVec<Vec<i32>> = CircularVec::new(3);
+        let v1 = vec![1, 2, 3];
+        let v2 = vec![4, 5, 6];
+        let v3 = vec![7, 8, 9];
+
+        cv.push((&v1).to_owned());
+        cv.push((&v2).to_owned());
+        cv.push((&v3).to_owned());
+
+        assert_eq!(cv.get(0), Some(&vec![1, 2, 3]));
+        assert_eq!(cv.get(1), Some(&vec![4, 5, 6]));
+        assert_eq!(cv.get(2), Some(&vec![7, 8, 9]));
+        assert_eq!(
+            cv.iter().collect::<Vec<_>>(),
+            vec![&vec![1, 2, 3], &vec![4, 5, 6], &vec![7, 8, 9]]
+        );
+
+        let v4 = vec![10, 11, 12];
+        cv.push((&v4).to_owned());
+
+        assert_eq!(cv.get(0), Some(&vec![4, 5, 6]));
+        assert_eq!(cv.get(1), Some(&vec![7, 8, 9]));
+        assert_eq!(cv.get(2), Some(&vec![10, 11, 12]));
+        assert_eq!(
+            cv.iter().collect::<Vec<_>>(),
+            vec![&vec![4, 5, 6], &vec![7, 8, 9], &vec![10, 11, 12]]
+        );
+
+        let v5 = vec![13, 14, 15];
+        cv.push((&v5).to_owned());
+
+        assert_eq!(cv.get(0), Some(&vec![7, 8, 9]));
+        assert_eq!(cv.get(1), Some(&vec![10, 11, 12]));
+        assert_eq!(cv.get(2), Some(&vec![13, 14, 15]));
+        assert_eq!(
+            cv.iter().collect::<Vec<_>>(),
+            vec![&vec![7, 8, 9], &vec![10, 11, 12], &vec![13, 14, 15]]
+        );
     }
 }

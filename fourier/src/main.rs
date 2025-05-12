@@ -19,14 +19,14 @@ use utils::fps_counter::FpsCounter;
 
 const WINDOW_WIDTH: u32 = 1200;
 const WINDOW_HEIGHT: u32 = 600;
-pub const MAX_LOUDNESS: f64 = 0.06; // TODO: Adjust this for microphone sensitivity
+pub const MAX_LOUDNESS: f64 = 0.05; // TODO: Adjust this for microphone sensitivity
 const CHUNK_SIZE: usize = 256; // Chunk size for audio processing, might need adjustment for microphone
 const FILE_PATH: &'static str = "./audio/pigstep.wav"; // Path to the audio file
+const NUM_BARS: usize = 32; // Fixed number of bars for visualization
 
 fn main() {
     // Initialize the visualization components
-    let num_bars = CHUNK_SIZE / 2;
-    let (mut window, mut visualizer) = initialize_visualization(num_bars);
+    let (mut window, mut visualizer) = initialize_visualization(NUM_BARS);
 
     // Set up audio processing
     let (audio_rx, audio_thread_handle, sample_rate) = setup_audio_streaming();
@@ -61,7 +61,7 @@ fn initialize_visualization(num_bars: usize) -> (PistonWindow, impl Visualizer) 
     //     WINDOW_WIDTH as f64 - 20.0,
     //     WINDOW_HEIGHT as f64 - 20.0,
     //     Rotation::Up,
-    //     num_bars,
+    //     24,
     // );
     let visualizer = ScrollingVisualizer::new(
         10.0,
@@ -69,6 +69,7 @@ fn initialize_visualization(num_bars: usize) -> (PistonWindow, impl Visualizer) 
         WINDOW_WIDTH as f64 - 20.0,
         WINDOW_HEIGHT as f64 - 20.0,
         num_bars,
+        41000,
     );
 
     (window, visualizer)
@@ -139,7 +140,7 @@ fn render_visualization<G>(
     c: Context,
     g: &mut G,
     visualizer: &mut impl Visualizer,
-    latest_fft_data: &Option<fft_lib::Frequencies>,
+    latest_fft_data: &mut Option<fft_lib::Frequencies>,
     audio_stream_ended: bool,
     _glyph_cache: &mut Glyphs,
 ) where
@@ -147,12 +148,13 @@ fn render_visualization<G>(
 {
     clear([1.0; 4], g);
 
-    if let Some(f) = latest_fft_data {
+    if let Some(f) = latest_fft_data.take() {
         debug_assert_eq!(f.amplitudes.len(), f.frequencies.len());
         debug_assert_eq!(f.amplitudes.len(), CHUNK_SIZE / 2);
         assert!(f.frequencies.len() > 0);
 
-        visualizer.draw(&f.amplitudes, &c, g);
+        visualizer.push(f.amplitudes);
+        visualizer.draw(&c, g);
     } else if !audio_stream_ended {
     } else if audio_stream_ended && latest_fft_data.is_none() {
     }
@@ -188,7 +190,7 @@ fn run_event_loop(
                     c,
                     g,
                     visualizer,
-                    &latest_fft_data,
+                    &mut latest_fft_data,
                     audio_stream_ended,
                     &mut glyph_cache,
                 );

@@ -1,16 +1,11 @@
 pub mod bar_visualizer;
 pub mod scrolling_visualizer;
 
-use piston_window::{
-    clear,
-    color::{BLACK, GRAY},
-    line, rectangle,
-    types::Color,
-    CharacterCache, Context, Graphics, Line, Rectangle, Transformed,
-};
+use piston_window::{Context, Graphics};
 
 pub trait Visualizer {
-    fn draw<G: Graphics>(&mut self, data: &[f64], c: &Context, g: &mut G);
+    fn push(&mut self, data: Vec<f64>);
+    fn draw<G: Graphics>(&self, c: &Context, g: &mut G);
 }
 
 // pub fn draw_bg<G: Graphics>(&self, c: &Context, g: &mut G) {
