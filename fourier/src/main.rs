@@ -3,7 +3,7 @@
 mod plot;
 mod utils;
 
-use audio_lib::{AudioSource, AudioStreamer, WavFileSource};
+use audio_lib::{AudioSource, AudioStreamer, MicrophoneSource, WavFileSource};
 use fft_lib::{fft, get_frequencies};
 use plot::bar_visualizer::{BarVisualizer, Rotation};
 
@@ -20,26 +20,26 @@ use utils::fps_counter::FpsCounter;
 const WINDOW_WIDTH: u32 = 1200;
 const WINDOW_HEIGHT: u32 = 600;
 pub const MAX_LOUDNESS: f64 = 0.05; // TODO: Adjust this for microphone sensitivity
-const CHUNK_SIZE: usize = 256; // Chunk size for audio processing, might need adjustment for microphone
-const FILE_PATH: &'static str = "./audio/pigstep.wav"; // Path to the audio file
+const CHUNK_SIZE: usize = 256; // Chunk size for audio processing
+                               // const FILE_PATH: &'static str = "./audio/pigstep.wav"; // Path to the audio file
 const NUM_BARS: usize = 32; // Fixed number of bars for visualization
 
 fn main() {
     // Initialize the visualization components
-    let (mut window, mut visualizer) = initialize_visualization(NUM_BARS);
+    let (mut window, mut visualizers) = initialize_visualization(NUM_BARS);
 
     // Set up audio processing
     let (audio_rx, audio_thread_handle, sample_rate) = setup_audio_streaming();
 
-    // Set up audio playback
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    let file_for_playback = BufReader::new(File::open(FILE_PATH).unwrap());
-    let source_for_playback = Decoder::new(file_for_playback).unwrap();
+    // // Set up audio playback
+    // let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    // let file_for_playback = BufReader::new(File::open(FILE_PATH).unwrap());
+    // let source_for_playback = Decoder::new(file_for_playback).unwrap();
 
     // Start rodio playback
-    let _ = stream_handle.play_raw(source_for_playback.convert_samples());
+    // let _ = stream_handle.play_raw(source_for_playback.convert_samples());
 
-    run_event_loop(&mut window, &mut visualizer, audio_rx, sample_rate);
+    run_event_loop(&mut window, &mut visualizers, audio_rx, sample_rate);
 
     // Cleanup
     if audio_thread_handle.join().is_err() {
@@ -48,47 +48,58 @@ fn main() {
 }
 
 /// Initialize the visualization window and plot
-fn initialize_visualization(num_bars: usize) -> (PistonWindow, impl Visualizer) {
+fn initialize_visualization(num_bars: usize) -> (PistonWindow, Vec<Box<dyn Visualizer>>) {
     let window: PistonWindow =
         WindowSettings::new("FFT - Audio File", [WINDOW_WIDTH, WINDOW_HEIGHT])
             .exit_on_esc(true)
             .build()
             .unwrap();
 
-    // let visualizer = BarVisualizer::new(
-    //     10.0,
-    //     10.0,
-    //     WINDOW_WIDTH as f64 - 20.0,
-    //     WINDOW_HEIGHT as f64 - 20.0,
-    //     Rotation::Up,
-    //     24,
-    // );
-    let visualizer = ScrollingVisualizer::new(
-        10.0,
-        10.0,
-        WINDOW_WIDTH as f64 - 20.0,
-        WINDOW_HEIGHT as f64 - 20.0,
-        num_bars,
-        41000,
-    );
+    // Create a Vector to hold all our visualizers
+    let mut visualizers: Vec<Box<dyn Visualizer>> = Vec::new();
 
-    (window, visualizer)
+    // Create bar visualizer that takes up the top half of the screen
+    visualizers.push(Box::new(BarVisualizer::new(
+        (WINDOW_WIDTH / 2) as f64 + 10.0,
+        10.0,
+        (WINDOW_WIDTH / 2) as f64 - 20.0,
+        WINDOW_HEIGHT as f64 - 20.0,
+        Rotation::Up,
+        num_bars,
+    )));
+
+    // Create scrolling visualizer that takes up the bottom half of the screen
+    visualizers.push(Box::new(ScrollingVisualizer::new(
+        10.0,
+        10.0,
+        (WINDOW_WIDTH / 2) as f64 - 20.0,
+        WINDOW_HEIGHT as f64 - 20.0,
+    )));
+
+    (window, visualizers)
 }
 
 /// Set up the audio streaming and playback
 fn setup_audio_streaming() -> (Receiver<Vec<f32>>, JoinHandle<()>, u32) {
     let (audio_tx, audio_rx) = mpsc::channel::<Vec<f32>>();
 
-    // Initialize WavFileSource
-    let wav_source = WavFileSource::new(FILE_PATH).expect("Failed to create Wavsource");
-    let sample_rate = wav_source.get_sample_rate();
+    // Initialize MicrophoneSource
+    let mic_source = MicrophoneSource::new().expect("Failed to create MicrophoneSource");
+    let sample_rate = mic_source.get_sample_rate();
 
     // Set up audio streamer with the correct chunk size
-    let mut audio_streamer = AudioStreamer::new(wav_source, CHUNK_SIZE);
+    let mut audio_streamer = AudioStreamer::new(mic_source, CHUNK_SIZE);
+
+    // // Initialize WavFileSource
+    // let wav_source = WavFileSource::new(FILE_PATH).expect("Failed to create Wavsource");
+    // let sample_rate = wav_source.get_sample_rate();
+
+    // // Set up audio streamer with the correct chunk size
+    // let mut audio_streamer = AudioStreamer::new(wav_source, CHUNK_SIZE);
 
     // Start the audio streaming thread
     let audio_thread_handle = thread::spawn(move || {
-        println!("Audio streaming thread started (WavFileSource).");
+        println!("Audio streaming thread started (MicrophoneSource).");
         if let Err(e) = audio_streamer.run(audio_tx) {
             eprintln!("Error running audio streamer: {}", e);
         }
@@ -135,17 +146,15 @@ fn process_audio_data(
     }
 }
 
-/// Render the visualization
-fn render_visualization<G>(
+/// Render all visualizations
+fn render_visualizations(
     c: Context,
-    g: &mut G,
-    visualizer: &mut impl Visualizer,
+    g: &mut G2d,
+    visualizers: &mut [Box<dyn Visualizer>],
     latest_fft_data: &mut Option<fft_lib::Frequencies>,
     audio_stream_ended: bool,
-    _glyph_cache: &mut Glyphs,
-) where
-    G: Graphics<Texture = <Glyphs as CharacterCache>::Texture>,
-{
+    glyph_cache: &mut Glyphs,
+) {
     clear([1.0; 4], g);
 
     if let Some(f) = latest_fft_data.take() {
@@ -153,17 +162,26 @@ fn render_visualization<G>(
         debug_assert_eq!(f.amplitudes.len(), CHUNK_SIZE / 2);
         assert!(f.frequencies.len() > 0);
 
-        visualizer.push(f.amplitudes);
-        visualizer.draw(&c, g);
+        // Push FFT data to all visualizers
+        for visualizer in visualizers.iter_mut() {
+            visualizer.push(f.amplitudes.clone());
+        }
+
+        // Draw all visualizers
+        for visualizer in visualizers.iter() {
+            visualizer.draw(&c, g);
+        }
     } else if !audio_stream_ended {
+        // No data yet, but audio is still streaming
     } else if audio_stream_ended && latest_fft_data.is_none() {
+        // Audio has ended and no more data to process
     }
 }
 
 /// Run the main event loop
 fn run_event_loop(
     window: &mut PistonWindow,
-    visualizer: &mut impl Visualizer,
+    visualizers: &mut [Box<dyn Visualizer>],
     audio_rx: Receiver<Vec<f32>>,
     sample_rate: u32,
 ) {
@@ -186,10 +204,10 @@ fn run_event_loop(
 
         if let Some(_render_args) = event.render_args() {
             window.draw_2d(&event, |c, g, _device| {
-                render_visualization(
+                render_visualizations(
                     c,
                     g,
-                    visualizer,
+                    visualizers,
                     &mut latest_fft_data,
                     audio_stream_ended,
                     &mut glyph_cache,

@@ -46,10 +46,9 @@ pub fn get_frequencies(fft_result: &FftResult, sample_rate: u32) -> Frequencies 
     let mut amplitudes = Vec::with_capacity(N / 2);
     let mut start_time = 0.0;
     let mut total_samples = 0;
-    let sample_rate = sample_rate as f64;
 
     for i in 0..N / 2 {
-        let frequency = (i as f64) * sample_rate / (N as f64);
+        let frequency = (i as f64) * sample_rate as f64 / (N as f64);
         frequencies.push(frequency);
         let amplitude = ((fft_result.real[i] * fft_result.real[i])
             + (fft_result.imag[i] * fft_result.imag[i]))
@@ -57,7 +56,7 @@ pub fn get_frequencies(fft_result: &FftResult, sample_rate: u32) -> Frequencies 
         amplitudes.push(amplitude);
     }
     if N > 0 {
-        start_time = 1.0 / sample_rate;
+        start_time = 1.0 / sample_rate as f64;
         total_samples = N;
     }
 
