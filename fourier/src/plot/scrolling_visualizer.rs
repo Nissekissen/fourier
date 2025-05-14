@@ -14,6 +14,7 @@ pub struct ScrollingVisualizer {
     height: f64,
     data: CircularVec<f64>,
     display_columns: usize,
+    max_amp: f64,
 }
 
 impl ScrollingVisualizer {
@@ -27,6 +28,7 @@ impl ScrollingVisualizer {
             height,
             data: CircularVec::new(width as usize),
             display_columns,
+            max_amp: 0.0,
         }
     }
 }
@@ -35,12 +37,14 @@ impl Visualizer for ScrollingVisualizer {
     fn push(&mut self, data: Vec<f64>) {
         let height_multiplier = 1.0 / self.height;
         let sum = data.iter().sum::<f64>() / (height_multiplier * data.len() as f64);
+        self.max_amp = self.max_amp.max(sum);
         self.data.push(sum);
     }
 
     fn draw(&self, c: &Context, g: &mut G2d) {
         for (i, column) in self.data.iter().enumerate() {
-            let height = column.min(1.0) * self.height;
+            let normalized_column = column / self.max_amp.max(1.0);
+            let height = normalized_column.min(1.0) * self.height;
             let rect = [
                 self.x + self.width - self.data.len() as f64 + i as f64,
                 self.y + self.height / 2.0 - height / 2.0,
